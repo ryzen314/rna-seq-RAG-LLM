@@ -1,0 +1,9 @@
+langchain
+langchain_community
+openpyxl
+langchain_ollama
+langchain_chroma
+pandas
+streamlit
+wxPython
+tkinter_async_execute
