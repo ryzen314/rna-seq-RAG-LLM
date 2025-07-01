@@ -43,6 +43,7 @@ print(excel_files)
 
 
 
+<<<<<<< Updated upstream
 db_location = "./chrome_langchain_db"
 add_documents = not os.path.exists(db_location)
 embeddings = OllamaEmbeddings(model="mxbai-embed-large")
@@ -50,6 +51,89 @@ vector_store = Chroma(
     embedding_function=embeddings,
     persist_directory=db_location
 )
+=======
+def doesDatabaseExist():
+    return databaseExist
+
+
+def configtkLabel(labelObj, string, append = False):
+    if append: 
+        labelObj['text'] += string
+    else: 
+        labelObj['text'] = string
+
+
+def selectDirectory():
+    filepath = filedialog.askdirectory()
+    filepath = os.path.normpath(filepath)
+    dirPathLabel = tk.Label(vectortk, text='Entering this directory...')
+    if os.path.exists(f"{filepath}/chrome_langchain_db"):
+        dirPathLabel.config(text="Database exists. Moving on...")
+        generateDB = False
+        retriever = loadVectorDB(filepath)
+    else: 
+        dirPathLabel.config(text="Let's generate the datebase")
+        generateDB = True
+        generateDatabase(filepath)
+
+def loadVectorDB(filepath):
+    db_location = f"{filepath}/chrome_langchain_db"
+    print('loading vector db..')
+    print(db_location)
+    embeddings = OllamaEmbeddings(model="mxbai-embed-large")
+    print('loading embeddings...')
+    vector_store = Chroma(
+        embedding_function=embeddings,
+        persist_directory=db_location
+    )
+    print('did we load?')
+    # create retriever
+    retriever = vector_store.as_retriever()
+    databaseExist = True
+    return retriever
+
+
+def fileBrowser():
+    global vectortk
+    vectortk = tk.Tk()
+    vectortk.geometry("500x400")
+    vectortk.title('Please select location of directory')
+    filepathLabel = tk.Label(vectortk, text="Do you have a pre-existing database or would you like to build one?")
+    filepathLabel.pack()
+    preexistingButton = tk.Button(vectortk, text='Pre-existing VectorDB', command=selectDirectory)
+    preexistingButton.pack(padx=10, pady=10)
+    generateDBButton = tk.Button(vectortk, text='Generate vectorDB', command=selectDirectory)
+    generateDBButton.pack(padx=10)
+    vectortk.mainloop()
+
+## Method to grab the excel files from the directory specified by the user to then make a vector DB from ##
+def grabExcelFiles(filepath):
+    excel_pattern = f"{filepath}/*.xls*"
+    excel_files = []
+    for file in glob(excel_pattern):
+        excel_files.append(file)
+    #list excel files found in the terminal
+    excelFileLabel = tk.Label(vectortk)
+    if excel_files:
+        configtkLabel(excelFileLabel, f"We found {len(excel_files)} Excel files in the directory", append=False)
+        for file in excel_files:
+            configtkLabel(excelFileLabel, f"{file}", append=True)
+    else:
+        configtkLabel(excelFileLabel, "No excel files found", append=True)
+    excelFileLabel.pack(pady=10)
+    return excel_files
+
+def generateDatabase(filepath):
+    #define the Database location and what embedding model to use
+    db_location = "./chrome_langchain_db"
+    embeddings = OllamaEmbeddings(model="mxbai-embed-large")
+    vector_store = Chroma(
+        embedding_function=embeddings,
+        persist_directory=db_location
+    )
+    # list to store all the excel files to convert to vector db
+    excel_files = grabExcelFiles(filepath)
+>>>>>>> Stashed changes
 
 if add_documents:
     df = []
