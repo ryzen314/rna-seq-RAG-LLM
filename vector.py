@@ -21,56 +21,98 @@ import ollama
 import pandas as pd
 from openpyxl import *
 import re
+import tkinter as tk
+from tkinter import filedialog
 
-global databaseExist    
-dir_path = "."
-excel_pattern = f"{dir_path}/*.xls*"
-#model = os.environ.get("MODEL", "mxbai-embed-large")
 
-#Find all matching files using glob
-excel_files = []
-for file in glob(excel_pattern):
-    excel_files.append(file)
-print(excel_files)
-#list excel files found in the terminal
-# if excel_files:
-#     print(f"Found {len(excel_files)} Excel files:")
-#     for file in excel_files:
-#         print(file)
-# else:
-#     print("No Excel files found.")
-#ollama.pull("mxbai-embed-large")
+global databaseExist; databaseExist = False
+global generateDB
+filepath = ''
+global retriever    
+
+def doesDatabaseExist():
+    return databaseExist
+
+
+def configtkLabel(labelObj, string, append = False):
+    if append: 
+        labelObj['text'] += string
+    else: 
+        labelObj['text'] = string
+
 
 def selectDirectory():
-    global filepath
     filepath = filedialog.askdirectory()
     filepath = os.path.normpath(filepath)
     dirPathLabel = tk.Label(vectortk, text='Entering this directory...')
-
     if os.path.exists(f"{filepath}/chrome_langchain_db"):
         dirPathLabel.config(text="Database exists. Moving on...")
-        databaseExist = True
+        generateDB = False
+        retriever = loadVectorDB()
+    else: 
+        dirPathLabel.config(text="Let's generate the datebase")
+        generateDB = True
+        generateDatabase(filepath)
+
+def loadVectorDB():
+    db_location = "./chrome_langchain_db"
+    print('loading vector db..')
+    embeddings = OllamaEmbeddings(model="mxbai-embed-large")
+    print('loading embeddings...')
+    vector_store = Chroma(
+        embedding_function=embeddings,
+        persist_directory=db_location
+    )
+    print('did we load?')
+    # create retriever
+    retriever = vector_store.as_retriever()
+    databaseExist = True
+    return retriever
+
+
 def fileBrowser():
     global vectortk
     vectortk = tk.Tk()
+    vectortk.geometry("500x400")
     vectortk.title('Please select location of directory')
     filepathLabel = tk.Label(vectortk, text="Do you have a pre-existing database or would you like to build one?")
+    filepathLabel.pack()
     preexistingButton = tk.Button(vectortk, text='Pre-existing VectorDB', command=selectDirectory)
+    preexistingButton.pack(padx=10, pady=10)
     generateDBButton = tk.Button(vectortk, text='Generate vectorDB', command=selectDirectory)
+    generateDBButton.pack(padx=10)
+    vectortk.mainloop()
 
+## Method to grab the excel files from the directory specified by the user to then make a vector DB from ##
+def grabExcelFiles(filepath):
+    excel_pattern = f"{filepath}/*.xls*"
+    excel_files = []
+    for file in glob(excel_pattern):
+        excel_files.append(file)
+    #list excel files found in the terminal
+    excelFileLabel = tk.Label(vectortk)
+    if excel_files:
+        configtkLabel(excelFileLabel, f"We found {len(excel_files)} Excel files in the directory", append=False)
+        for file in excel_files:
+            configtkLabel(excelFileLabel, f"{file}", append=True)
+    else:
+        configtkLabel(excelFileLabel, "No excel files found", append=True)
+    excelFileLabel.pack(pady=10)
+    return excel_files
 
+def generateDatabase(filepath):
+    #define the Database location and what embedding model to use
+    db_location = "./chrome_langchain_db"
+    embeddings = OllamaEmbeddings(model="mxbai-embed-large")
+    vector_store = Chroma(
+        embedding_function=embeddings,
+        persist_directory=db_location
+    )
+    # list to store all the excel files to convert to vector db
+    excel_files = grabExcelFiles(filepath)
 
-db_location = "./chrome_langchain_db"
-add_documents = not os.path.exists(db_location)
-embeddings = OllamaEmbeddings(model="mxbai-embed-large")
-vector_store = Chroma(
-    embedding_function=embeddings,
-    persist_directory=db_location
-)
-
-if add_documents:
     df = []
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    #text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     for i in range(len(excel_files)): 
         #store the file name
         filename = re.search(r'[^/]+$', excel_files[i])
@@ -111,10 +153,11 @@ if add_documents:
                     documents = []
                     ids = []
             print(f"Finished with sheet {list(sheetnamesdf)[k]}")
-        
-# create retriever
-retriever = vector_store.as_retriever()
-databaseExist = True
+    
+    #after generating the vector db - load retriever
+    retriever = loadVectorDB()
+
+
 
 async def generateAIAnswer(question):
     model = os.environ.get("MODEL", "deepseek-r1:14b")

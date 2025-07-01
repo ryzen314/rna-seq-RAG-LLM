@@ -7,3 +7,4 @@ pandas
 streamlit
 wxPython
 tkinter_async_execute
+
