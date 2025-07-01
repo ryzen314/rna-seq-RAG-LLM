@@ -22,7 +22,7 @@ import pandas as pd
 from openpyxl import *
 import re
 
-    
+global databaseExist    
 dir_path = "."
 excel_pattern = f"{dir_path}/*.xls*"
 #model = os.environ.get("MODEL", "mxbai-embed-large")
@@ -40,6 +40,23 @@ print(excel_files)
 # else:
 #     print("No Excel files found.")
 #ollama.pull("mxbai-embed-large")
+
+def selectDirectory():
+    global filepath
+    filepath = filedialog.askdirectory()
+    filepath = os.path.normpath(filepath)
+    dirPathLabel = tk.Label(vectortk, text='Entering this directory...')
+
+    if os.path.exists(f"{filepath}/chrome_langchain_db"):
+        dirPathLabel.config(text="Database exists. Moving on...")
+        databaseExist = True
+def fileBrowser():
+    global vectortk
+    vectortk = tk.Tk()
+    vectortk.title('Please select location of directory')
+    filepathLabel = tk.Label(vectortk, text="Do you have a pre-existing database or would you like to build one?")
+    preexistingButton = tk.Button(vectortk, text='Pre-existing VectorDB', command=selectDirectory)
+    generateDBButton = tk.Button(vectortk, text='Generate vectorDB', command=selectDirectory)
 
 
 
@@ -95,64 +112,61 @@ if add_documents:
                     ids = []
             print(f"Finished with sheet {list(sheetnamesdf)[k]}")
         
+# create retriever
 retriever = vector_store.as_retriever()
+databaseExist = True
 
-model = os.environ.get("MODEL", "deepseek-r1:14b")
-ollamamodel = ChatOllama(base_url='http://localhost:11434', model=model)
-print(type(ollamamodel))
-print("Model loaded successfully")
+async def generateAIAnswer(question):
+    model = os.environ.get("MODEL", "deepseek-r1:14b")
+    ollamamodel = ChatOllama(base_url='http://localhost:11434', model=model)
+    print(type(ollamamodel))
+    print("Model loaded successfully")
+    system_prompt = (
+        """You are an assistant for querying RNA sequencing database and 
+        providing information regarding genes that are differentially regulated.
+        Base Mean is the expression level and Log2FoldChange is the fold change relative
+        to the control condition. Use the following pieces from the retrieved database to 
+        answer your question. 
+        If you don't know the answer, say you don't know.
+        \n\n
+        {context}
+        """
+    )
+    chat_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", system_prompt),
+            ("human", "{input}"),
+        ]
+    )
+    question_answering_chain = create_stuff_documents_chain(ollamamodel, chat_prompt)
+    rag_chain = create_retrieval_chain(retriever, question_answering_chain)
 
-system_prompt = (
-    """You are an assistant for querying RNA sequencing database and 
-    providing information regarding genes that are differentially regulated.
-    Base Mean is the expression level and Log2FoldChange is the fold change relative
-    to the control condition. Use the following pieces from the retrieved database to 
-    answer your question. 
-    If you don't know the answer, say you don't know.
-    \n\n
-    {context}
-    """
-)
-chat_prompt = ChatPromptTemplate.from_messages(
-    [
-        ("system", system_prompt),
-        ("human", "{input}"),
-    ]
-)
-question_answering_chain = create_stuff_documents_chain(ollamamodel, chat_prompt)
-rag_chain = create_retrieval_chain(retriever, question_answering_chain)
+    retriever_prompt = (
+        """Given a chat history and the latest user question which might reference context in the chat history,
+        formulate a standalone question which can be understood without the chat history.
+        Do NOT answer the question, just reformulate it if needed otherwise return it as is."""
+    )
+    chat_history = []
+    contextualize_q_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", retriever_prompt),
+            MessagesPlaceholder(variable_name="chat_history"),
+            ("human", "{input}"),
+        ]
+    )
+    history_aware_retriever = create_history_aware_retriever(ollamamodel, retriever, contextualize_q_prompt)
+    qa_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", system_prompt),
+            MessagesPlaceholder("chat_history"),
+            ("human", "{input}"),
+        ]
+    )
+    question_answer_chain = create_stuff_documents_chain(ollamamodel, qa_prompt)
 
-retriever_prompt = (
-    """Given a chat history and the latest user question which might reference context in the chat history,
-    formulate a standalone question which can be understood without the chat history.
-    Do NOT answer the question, just reformulate it if needed otherwise return it as is."""
-)
-chat_history = []
-contextualize_q_prompt = ChatPromptTemplate.from_messages(
-    [
-        ("system", retriever_prompt),
-        MessagesPlaceholder(variable_name="chat_history"),
-        ("human", "{input}"),
-    ]
-)
-history_aware_retriever = create_history_aware_retriever(ollamamodel, retriever, contextualize_q_prompt)
-qa_prompt = ChatPromptTemplate.from_messages(
-    [
-        ("system", system_prompt),
-        MessagesPlaceholder("chat_history"),
-        ("human", "{input}"),
-    ]
-)
-question_answer_chain = create_stuff_documents_chain(ollamamodel, qa_prompt)
+    rag_chain = create_retrieval_chain(history_aware_retriever, question_answer_chain)
 
-rag_chain = create_retrieval_chain(history_aware_retriever, question_answer_chain)
-st.title("RNA seq database query")
-
-
-question = st.text_input("Enter your question or q to quit:")
-
-if question:
-    with st.spinner("Generating Response..."):
+    if question: 
         message = rag_chain.invoke({"input": question, "chat_history": chat_history})
         print(message["answer"])
         chat_history.extend(
@@ -161,5 +175,5 @@ if question:
                 AIMessage(content = message["answer"]),
             ]
         )
-        st.markdown("**Assistant**")
-        st.write(message["answer"])      
+        return chat_history
+                 
