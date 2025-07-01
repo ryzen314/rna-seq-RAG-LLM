@@ -48,14 +48,14 @@ def selectDirectory():
     if os.path.exists(f"{filepath}/chrome_langchain_db"):
         dirPathLabel.config(text="Database exists. Moving on...")
         generateDB = False
-        retriever = loadVectorDB()
+        retriever = loadVectorDB(filepath)
     else: 
         dirPathLabel.config(text="Let's generate the datebase")
         generateDB = True
         generateDatabase(filepath)
 
-def loadVectorDB():
-    db_location = "./chrome_langchain_db"
+def loadVectorDB(filepath):
+    db_location = f"{filepath}/chrome_langchain_db"
     print('loading vector db..')
     embeddings = OllamaEmbeddings(model="mxbai-embed-large")
     print('loading embeddings...')
@@ -155,7 +155,7 @@ def generateDatabase(filepath):
             print(f"Finished with sheet {list(sheetnamesdf)[k]}")
     
     #after generating the vector db - load retriever
-    retriever = loadVectorDB()
+    retriever = loadVectorDB(filepath)
 
 
 
