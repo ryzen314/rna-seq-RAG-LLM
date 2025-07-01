@@ -23,12 +23,12 @@ from openpyxl import *
 import re
 import tkinter as tk
 from tkinter import filedialog
+import asyncio
 
 
 global databaseExist; databaseExist = False
 global generateDB
 filepath = ''
-global retriever    
 
 def doesDatabaseExist():
     return databaseExist
@@ -48,7 +48,7 @@ def selectDirectory():
     if os.path.exists(f"{filepath}/chrome_langchain_db"):
         dirPathLabel.config(text="Database exists. Moving on...")
         generateDB = False
-        retriever = loadVectorDB(filepath)
+        global retriever; retriever = loadVectorDB(filepath)
     else: 
         dirPathLabel.config(text="Let's generate the datebase")
         generateDB = True
@@ -63,10 +63,11 @@ def loadVectorDB(filepath):
         embedding_function=embeddings,
         persist_directory=db_location
     )
-    print('did we load?')
     # create retriever
     retriever = vector_store.as_retriever()
+    print('retriever loaded')
     databaseExist = True
+    vectortk.destroy()
     return retriever
 
 
@@ -103,8 +104,8 @@ def grabExcelFiles(filepath):
 def generateDatabase(filepath):
     #define the Database location and what embedding model to use
     db_location = "./chrome_langchain_db"
-    embeddings = OllamaEmbeddings(model="mxbai-embed-large")
-    vector_store = Chroma(
+    global embeddings; embeddings = OllamaEmbeddings(model="mxbai-embed-large")
+    global vector_store; vector_store = Chroma(
         embedding_function=embeddings,
         persist_directory=db_location
     )
@@ -155,11 +156,14 @@ def generateDatabase(filepath):
             print(f"Finished with sheet {list(sheetnamesdf)[k]}")
     
     #after generating the vector db - load retriever
-    retriever = loadVectorDB(filepath)
+    global retriever; retriever = loadVectorDB(filepath)
 
+# gets users question from tkinter window
+def getUserQuestion(quest):
+    global question; question = quest
+    
 
-
-async def generateAIAnswer(question):
+async def generateAIAnswer():
     model = os.environ.get("MODEL", "deepseek-r1:14b")
     ollamamodel = ChatOllama(base_url='http://localhost:11434', model=model)
     print(type(ollamamodel))
