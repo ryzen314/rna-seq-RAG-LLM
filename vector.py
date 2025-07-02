@@ -29,6 +29,7 @@ import asyncio
 global databaseExist; databaseExist = False
 global generateDB
 filepath = ''
+chat_history = []
 
 def doesDatabaseExist():
     return databaseExist
@@ -159,7 +160,7 @@ def generateDatabase(filepath):
     global retriever; retriever = loadVectorDB(filepath)
 
 # gets users question from tkinter window
-def getUserQuestion(quest):
+def setUserQuestion(quest):
     global question; question = quest
     
 
@@ -193,7 +194,6 @@ async def generateAIAnswer():
         formulate a standalone question which can be understood without the chat history.
         Do NOT answer the question, just reformulate it if needed otherwise return it as is."""
     )
-    chat_history = []
     contextualize_q_prompt = ChatPromptTemplate.from_messages(
         [
             ("system", retriever_prompt),
@@ -223,4 +223,5 @@ async def generateAIAnswer():
             ]
         )
         return chat_history
-                 
+
+
