@@ -12,12 +12,10 @@ from langchain.prompts import PromptTemplate
 from langchain.chains.history_aware_retriever import create_history_aware_retriever
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.chains import create_retrieval_chain
-from langchain_community.chat_message_histories import ChatMessageHistory
-from langchain_core.chat_history import BaseChatMessageHistory
-from langchain_core.runnables.history import RunnableWithMessageHistory
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-import streamlit as st
-import ollama
+# from langchain_community.chat_message_histories import ChatMessageHistory
+# from langchain_core.chat_history import BaseChatMessageHistory
+# from langchain_core.runnables.history import RunnableWithMessageHistory
+# from langchain_text_splitters import RecursiveCharacterTextSplitter
 import pandas as pd
 from openpyxl import *
 import re
@@ -28,7 +26,7 @@ import asyncio
 
 global databaseExist; databaseExist = False
 global generateDB
-filepath = ''
+filepath = None
 chat_history = []
 
 def doesDatabaseExist():
@@ -167,7 +165,6 @@ def setUserQuestion(quest):
 async def generateAIAnswer():
     model = os.environ.get("MODEL", "deepseek-r1:14b")
     ollamamodel = ChatOllama(base_url='http://localhost:11434', model=model)
-    print(type(ollamamodel))
     print("Model loaded successfully")
     system_prompt = (
         """You are an assistant for querying RNA sequencing database and 
@@ -222,6 +219,6 @@ async def generateAIAnswer():
                 AIMessage(content = message["answer"]),
             ]
         )
-        return chat_history
+        return message["answer"]
 
 

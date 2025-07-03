@@ -26,7 +26,8 @@ async def submitQuestionToAI(event=None):
     questionLabel.config(text="The question you asked:   " + question)
     questionWidget.delete('1.0', 'end')
     setUserQuestion(question)
-    asyncAITask = await asyncio.create_task(generateAIAnswer())
+    answer = await asyncio.create_task(generateAIAnswer())
+    answerText.insert(tk.END, answer)
     #tae.async_execute(generateAIAnswer())
 
 
@@ -36,14 +37,17 @@ def main(async_loop):
     root = tk.Tk()
     root.geometry("1440x900")
     root.title("Dougan Lab RNA-seq database assistant")
-    submitLabel = tk.Label(root, text = "Enter text and press Enter: ")
+    submitLabel = tk.Label(root, text = "Enter your question: ")
     submitLabel.pack(pady = 10) 
     global questionWidget
     questionWidget = tk.Text(root, height = 10, width = 100)
     questionWidget.pack(pady = 10)
-    #questionWidget.bind("<Return>", lambda async_loop: do_async_tasks(async_loop))
     submitQuestion = tk.Button(root, text='Submit question', command=lambda:do_async_tasks(async_loop))
     submitQuestion.pack(pady=10)
+    global answerText; answerText = scrolledtext.ScrolledText(root, wrap=tk.WORD, width=500, height = 300)
+    answerText.pack(pady=10, fill=tk.BOTH, expand=True)
+    #questionWidget.bind("<Return>", lambda async_loop: do_async_tasks(async_loop))
+    
     global questionLabel; questionLabel = tk.Label(root)
     questionLabel.pack(pady = 10)
     global generatingResponseLabel
