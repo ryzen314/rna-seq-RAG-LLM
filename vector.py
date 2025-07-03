@@ -55,6 +55,7 @@ def doesDatabaseExist():
 
 # Modified to accept parent_root
 def selectDirectory_action(parent_root):
+    global databaseExist, generateDB, retriever
     # filedialog.askdirectory returns the path, or an empty string if canceled
     chosen_filepath = filedialog.askdirectory()
     
@@ -74,12 +75,12 @@ def selectDirectory_action(parent_root):
     try:
         if os.path.exists(f"{chosen_filepath}/chrome_langchain_db"):
             set_vectortk_labels(dirPathLabel, "Database exists. Loading...")
-            global generateDB; generateDB = False
+            generateDB = False
             global retriever; retriever = loadVectorDB(chosen_filepath)
             databaseExist = True # Set global flag
         else:
             set_vectortk_labels(dirPathLabel, "Database not found. Generating...")
-            global generateDB; generateDB = True
+            generateDB = True
             generateDatabase(chosen_filepath) # Pass chosen_filepath to generation
             databaseExist = True # Set global flag after generation
         
@@ -290,7 +291,7 @@ async def generateAIAnswer():
     if question:
         try:
             response = rag_chain.invoke(
-                {"input": question},
+                {"input": question, "chat_history": chat_history},
                 config={"configurable": {"session_id": "rna_seq_session"}}
             )
             answer_text = response["answer"]
