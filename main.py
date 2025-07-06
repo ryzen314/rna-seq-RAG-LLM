@@ -8,6 +8,7 @@ import sys
 
 # Import functions from vector.py
 from vector import fileBrowser_toplevel, generateAIAnswer, setUserQuestion, doesDatabaseExist, set_vectortk_labels
+from gpu_ollama_window import gpuollama_toplevel
 
 # --- Global Variables for Main Application ---
 global root_main_app
@@ -91,7 +92,8 @@ def setup_main_window():
 
     # Hide the main window initially
     root_main_app.withdraw()
-
+    #call the window to select model
+    gpuollama_toplevel(root_main_app)
     # Call the directory selection dialog (blocking until dialog closes)
     # fileBrowser_toplevel is a new function name in vector.py for clarity
     fileBrowser_toplevel(root_main_app)

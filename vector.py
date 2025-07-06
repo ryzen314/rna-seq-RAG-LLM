@@ -22,6 +22,7 @@ import re
 import tkinter as tk
 from tkinter import filedialog
 import asyncio
+from gpu_ollama_window import get_selected_model
 
 # --- Global Flags/Objects for Shared State ---
 global databaseExist; databaseExist = False
@@ -330,108 +331,96 @@ def _get_session_history_for_chain(session_id: str) -> BaseChatMessageHistory:
         _session_store[session_id] = []
     return ChatMessageHistory(messages=_session_store[session_id])
 
+# Import this at the top of your file
+from langchain.chains import create_retrieval_chain
+from langchain_core.runnables.history import RunnableWithMessageHistory
+
 async def generateAIAnswer():
-    model = os.environ.get("MODEL", "deepseek-r1:14b")
+    modelSelected = getModelSelected()
+    model = os.environ.get("MODEL", modelSelected)
     if 'retriever' not in globals() or retriever is None:
         return "Error: Database retriever not initialized. Please set up the database first."
         
     try:
         ollamamodel = ChatOllama(base_url='http://localhost:11434', model=model)
-        print("Ollama Model loaded successfully (from within bundled app)")
     except Exception as e:
         print(f"Error loading Ollama model: {e}")
         return f"An error occurred while generating the AI answer. Error: {e}"
         
+    # This prompt is for the LLM to generate a standalone question based on history
+    history_aware_prompt = ChatPromptTemplate.from_messages([
+        ("system", "Given a chat history and the latest user question..., reformulate it..."),
+        MessagesPlaceholder(variable_name="chat_history"),
+        ("human", "{input}"),
+    ])
+    
+    # This chain will take user input and chat history, and create a new retriever
+    history_aware_retriever_chain = create_history_aware_retriever(
+        ollamamodel, retriever, history_aware_prompt
+    )
+
+    # This prompt is for the final answer, using the retrieved context
     system_prompt = (
-        """You are an assistant for querying RNA sequencing database and
-        providing information regarding genes that are differentially regulated.
-        Base Mean is the expression level and Log2FoldChange is the fold change relative
-        to the control condition. Use the following pieces from the retrieved database to
-        answer your question.
-        If you don't know the answer, say you don't know.
-        \n\n
-        {context}
-        """
-    )
+    """You are an expert assistant for querying an RNA sequencing database. 
+    Your role is to provide clear, concise, and accurate answers based on the provided context.
 
-    # 1. Prompt for History-Aware Retriever (reformulates question)
-    history_aware_prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system",
-             "Given a chat history and the latest user question which might reference context in the chat history,"
-             "formulate a standalone question which can be understood without the chat history."
-             "Do NOT answer the question, just reformulate it if needed otherwise return it as is."),
-            MessagesPlaceholder(variable_name="chat_history"),
-            ("human", "{input}"),
-        ]
-    )
-    history_aware_retriever_chain = create_history_aware_retriever(ollamamodel, retriever, history_aware_prompt)
+    Follow these steps:
+    1. First, think step-by-step about the user's question and the provided context. Enclose this entire thought process within <think> and </think> tags.
+    2. After the closing </think> tag, provide the final, user-facing answer. 
+    3. The final answer should be clean, well-formatted with markdown, and contain ONLY the direct answer to the user's question. DO NOT include any <think> tags or your internal monologue in the final answer.
 
-    # 2. Prompt for Answering Question (uses context)
-    qa_prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", system_prompt), # This has {context}
-            MessagesPlaceholder("chat_history"), # This has {chat_history}
-            ("human", "{input}"),
-        ]
-    )
+    Context:
+    {context}
+    """
+)
+   
+    qa_prompt = ChatPromptTemplate.from_messages([
+        ("system", system_prompt),
+        MessagesPlaceholder(variable_name="chat_history"),
+        ("human", "{input}"),
+    ])
+    
+    # This chain takes the documents and stuffs them into the final prompt
     Youtube_chain = create_stuff_documents_chain(ollamamodel, qa_prompt)
 
-    # 3. Combine them into a RAG chain
-    # The create_retrieval_chain passes 'context' from retriever to stuff_documents_chain.
-    # This is where the context is generated.
-    retrieval_rag_chain = create_retrieval_chain(history_aware_retriever_chain, Youtube_chain)
+    # KEY STEP: Combine the retriever and the answer chain
+    # This is the standard helper that correctly passes "context" and other keys.
+    rag_chain = create_retrieval_chain(history_aware_retriever_chain, Youtube_chain)
 
-    # --- NEW CRITICAL STEP: Ensure 'context' is explicitly passed from the retriever's output
-    # through the RunnableWithMessageHistory wrapper.
-    # The output of `retrieval_rag_chain` is a dict that includes "context" and "answer".
-    # We need to map these to the final prompt's expected variables when wrapping.
-
-    # When using `RunnableWithMessageHistory`, the `retrieval_rag_chain` is its `runnable`.
-    # The `retrieval_rag_chain` will output a dictionary like `{"input": ..., "chat_history": ..., "context": ..., "answer": ...}`.
-    # We need to ensure that the `context` is accessible by the `qa_prompt`.
-    # A common way to handle this when composing chains is to use `RunnablePassthrough.assign`
-    # or `itemgetter` on the inputs to the `stuff_documents_chain`.
-
-    # However, since `create_retrieval_chain` is designed to pass context correctly to
-    # `create_stuff_documents_chain`, the issue is often related to `RunnableWithMessageHistory`
-    # not exposing `context` through its `invoke` parameters correctly for nested chains.
-
-    # Let's rebuild the `conversational_rag_chain` using a standard pattern from LangChain docs
-    # that correctly exposes `context` and `chat_history`.
-
-    # Define the core RAG chain that takes `input` and `chat_history` (and generates `context`)
-    # and produces `answer`.
-    # This chain will output `{"answer": ..., "context": ..., "chat_history": ...}`
-    # We then use RunnableWithMessageHistory to inject the history.
-
-    final_combined_chain = (
-        history_aware_retriever_chain # First, retrieve documents (outputs {"context": docs, "input": ..., "chat_history": ...})
-        | Youtube_chain # Then, answer using the retrieved context and other inputs
-                               # Youtube_chain expects {context, input, chat_history}
-    )
-
-    # Wrap the final chain with RunnableWithMessageHistory for automatic chat history management
+    # Now, wrap the entire RAG chain to make it conversational
     conversational_rag_chain = RunnableWithMessageHistory(
-        final_combined_chain, # The chain that takes input & chat_history and uses context
-        _get_session_history_for_chain,
-        input_messages_key="input", # User's current message
-        history_messages_key="chat_history", # Placeholder name in your prompt
-        # We don't need output_messages_key if the chain's direct output is not a BaseMessage list
-        # And context_messages_key isn't a direct parameter of RunnableWithMessageHistory itself.
+        rag_chain,
+        _get_session_history_for_chain, # Your function to get history
+        input_messages_key="input",
+        history_messages_key="chat_history",
+        output_messages_key="answer", # The key in the output dict that holds the final answer
     )
 
     if question:
         try:
-            # Invoke the wrapped chain. It manages input, chat_history, and context internally.
+            # Invoke the wrapped chain. It manages history automatically.
+            # We ONLY pass the key(s) that the *original* chain expects: "input".
             response = await conversational_rag_chain.ainvoke(
-                {"input": question}, # Only pass the current input
+                {"input": question},
                 config={"configurable": {"session_id": "rna_seq_session"}}
             )
-            answer_text = response["answer"]
-            # No manual history.extend needed here, as RunnableWithMessageHistory handles it.
+            answer_text = response['answer']
+            # The output of the wrapped chain is now just the answer string
+            if "</think>" in answer_text:
+                answer_text = answer_text.split("</think>" , 1)[-1].strip()
             return answer_text
         except Exception as e:
             print(f"Error during AI answer generation: {e}")
+            # The error message from the exception is often very helpful!
             return f"An error occurred while generating the AI answer: {e}"
+            
     return "No question was provided."
+
+# You will also need this helper function defined somewhere in your file
+# It tells RunnableWithMessageHistory HOW to get the history for a given session.
+# We are using a simple global dictionary here.
+store = {}
+def _get_session_history_for_chain(session_id: str):
+    if session_id not in store:
+        store[session_id] = ChatMessageHistory()
+    return store[session_id]

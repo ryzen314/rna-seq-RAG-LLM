@@ -95,7 +95,11 @@ def get_system_vram():
 def check_ollama_installed():
     """Checks if Ollama is installed."""
     print("\nChecking if Ollama is installed...")
-    command = "command -v ollama" if sys.platform != "win32" else "where ollama"
+    command = "command -v ollama" 
+    if sys.platform != "win32":
+        command = 'command -v ollama'
+    else: 
+        command = "where ollama"
     return run_command(command.split()) is not None
 
 def install_ollama():
