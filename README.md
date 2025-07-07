@@ -1,7 +1,7 @@
 # rna-seq-RAG-LLM
 This application is meant to help you parse through RNA sequencing data that has been analyzed previously and exported to an excel file. Currently, i have bulk RNA seq data supported, but single cell support will be coming soon.
 
-You need ollama for this app. 
+You need ollama for this app. \n
 MacOS/Windows: download at https://www.ollama.com
 
 MacOS/Linux: curl -fsSL https://ollama.com/install.sh | sh
