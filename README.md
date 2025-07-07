@@ -5,6 +5,8 @@ You need ollama for this app.
 
 MacOS/Windows: download at https://www.ollama.com
 
+OR:
+
 MacOS/Linux: curl -fsSL https://ollama.com/install.sh | sh
 
 For bulk RNA it grabs your gene names, baseMean, Log2FoldChange, sheetname and file name. I will add an example image to give you an idea of the format for generating the database. 
