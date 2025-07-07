@@ -336,7 +336,7 @@ from langchain.chains import create_retrieval_chain
 from langchain_core.runnables.history import RunnableWithMessageHistory
 
 async def generateAIAnswer():
-    modelSelected = getModelSelected()
+    modelSelected = get_selected_model()
     model = os.environ.get("MODEL", modelSelected)
     if 'retriever' not in globals() or retriever is None:
         return "Error: Database retriever not initialized. Please set up the database first."

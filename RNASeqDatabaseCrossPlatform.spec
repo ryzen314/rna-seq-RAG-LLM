@@ -8,9 +8,17 @@ from PyInstaller.utils.hooks import collect_data_files, collect_all
 spec_file_path = os.path.abspath(sys.argv[0])
 project_root = os.path.dirname(spec_file_path)
 
-app_name = 'RNASeqDatabase'
+app_name = 'RNASeqApp'
 
-app_icon_path = os.path.join(project_root, 'RNASeqApp.icns') 
+# --- NEW: Platform-Specific Icon ---
+# This block automatically chooses the correct icon file based on the OS.
+if sys.platform == 'darwin': # 'darwin' is the name for macOS
+    app_icon_path = os.path.join(project_root, 'RNASeqApp.icns')
+elif sys.platform == 'win32': # For Windows
+    app_icon_path = os.path.join(project_root, 'RNASeqApp.ico') # .ico is standard for Windows
+else: # For Linux, etc.
+    app_icon_path = os.path.join(project_root, 'RNASeqApp.png')
+
 if not os.path.exists(app_icon_path):
     print(f"WARNING: Icon file not found at {app_icon_path}. Application will be built without an icon.")
     app_icon_path = None
@@ -24,30 +32,23 @@ site_packages_path = os.path.join(sys.prefix, 'lib', f'python{sys.version_info.m
 print(f"INFO: Determined site-packages path: {site_packages_path}")
 
 
-# --- Analysis Phase ---
+# --- Analysis Phase (from your working file) ---
 a = Analysis(
     ['main.py'],
     pathex=[project_root],
     binaries=[],
     datas=[
-        # REMOVE THESE LINES if you don't want to bundle your local dev copies
-        # (os.path.join(project_root, 'chrome_langchain_db'), 'chrome_langchain_db'),
-        # (os.path.join(project_root, 'excel_files'), 'excel_files'),
-
-        # KEEP THIS ONE, as it's the critical fix for langchain_core imports:
         (os.path.join(site_packages_path, 'langchain_core'), 'langchain_core'),
     ],
     hiddenimports=[
         'tkinter',
         'pydantic',
         'pydantic_core',
-        # 'langchain_core', # Handled by direct copy
         'langchain_community',
         'langchain_ollama',
         'langchain_chroma',
         'langchain.chains.retrieval',
         'langchain.chains.combine_documents',
-        # 'langchain.chains.Youtubeing', # Still verify/remove if not real
         'langchain.chains.conversational_retrieval',
         'langchain.chains.llm',
         'langchain.chains.retrieval_qa.base',
@@ -60,7 +61,7 @@ a = Analysis(
         'importlib_metadata',
         'packaging',
         'setuptools',
-        'langchain_core.callbacks.manager', # Keep for safety
+        'langchain_core.callbacks.manager',
         'langchain_core.callbacks.base',
         'langchain_core.tracers.base',
         'langchain_core.tracers.stdout',
@@ -72,9 +73,9 @@ a = Analysis(
         'openpyxl.worksheet._read_only',
         'openpyxl.worksheet.cell_row_dim',
         'openpyxl.styles',
-        'lxml.etree', # Proactive for potential XML issues with openpyxl
-        'lxml._elementpath', # Proactive for potential XML issues with openpyxl
-        'xml.etree.ElementTree', # Standard XML library, sometimes needed implicitly
+        'lxml.etree',
+        'lxml._elementpath',
+        'xml.etree.ElementTree',
         'chromadb.telemetry.product.posthog', 
         'chromadb.telemetry',
         'chromadb.telemetry.product',
@@ -89,10 +90,6 @@ a = Analysis(
         'matplotlib.tests', 'numpy.tests',
         'test', 'tests',
         'unittest',
-        # Keep html, http, xml, as you are using openpyxl which might need some xml parsing
-        # 'html',
-        # 'http',
-        # 'xml',
     ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
@@ -100,10 +97,9 @@ a = Analysis(
     noarchive=False,
 )
 
-# --- Collect additional files from complex packages using collect_all ---
+# --- Collect additional files (from your working file) ---
 langchain_packages_to_collect = [
     'langchain',
-    # 'langchain_core', # Removed - handled by explicit 'datas'
     'langchain_community',
     'langchain_ollama',
     'langchain_chroma',
@@ -126,7 +122,7 @@ a.binaries += extra_binaries
 a.datas += extra_datas
 a.hiddenimports += extra_hiddenimports
 
-# --- CRITICAL FIX: ENSURE ALL ENTRIES IN a.binaries AND a.datas ARE 3-ELEMENT TUPLES ---
+# --- CRITICAL FIX (from your working file) ---
 fixed_a_binaries = []
 for item in a.binaries:
     if len(item) == 2:
@@ -143,18 +139,17 @@ for item in a.datas:
         src, dest = item
         typecode = 'DATA'
         if src.lower().endswith(('.py', '.pyc')):
-             typecode = 'PYSOURCE'
+            typecode = 'PYSOURCE'
         fixed_a_datas.append((src, dest, typecode))
     else:
         fixed_a_datas.append(item)
 a.datas = fixed_a_datas
-
 # --- END CRITICAL FIX ---
 
 
 # --- PYZ Phase ---
 pyz = PYZ(a.pure, a.zipped_data,
-              cipher=block_cipher)
+          cipher=block_cipher)
 
 # --- EXE Phase ---
 exe = EXE(pyz,
@@ -169,7 +164,7 @@ exe = EXE(pyz,
           upx=True,
           upx_exclude=[],
           runtime_tmpdir=None,
-          console=False, # Keep True for now!
+          console=False, # Set to False for a proper GUI app
           disable_windowed_traceback=False,
           argv_emulation=False,
           target_arch=None,
@@ -178,15 +173,19 @@ exe = EXE(pyz,
           icon=app_icon_path
           )
 
-# --- BUNDLE Phase ---
-app = BUNDLE(exe,
-             name=f'{app_name}.app',
-             icon=app_icon_path,
-             bundle_identifier="com.yourcompany.RNASeqApp",
-             info_plist={
-                 'CFBundleDisplayName': app_name,
-                 'CFBundleShortVersionString': '1.0.0',
-                 'CFBundleVersion': '1',
-                 'NSHighResolutionCapable': True,
-             }
-            )
+# --- Platform-Specific BUNDLE Phase ---
+# The BUNDLE object is only created when running on macOS.
+# On Linux and Windows, this block is ignored, and the final output is 
+# the 'dist/RNASeqApp' folder created by the EXE object.
+if sys.platform == 'darwin':
+    app = BUNDLE(exe,
+                 name=f'{app_name}.app',
+                 icon=app_icon_path,
+                 bundle_identifier="com.yourcompany.RNASeqApp",
+                 info_plist={
+                     'CFBundleDisplayName': app_name,
+                     'CFBundleShortVersionString': '1.0.0',
+                     'CFBundleVersion': '1',
+                     'NSHighResolutionCapable': True,
+                 }
+                 )
