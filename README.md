@@ -6,7 +6,7 @@ For bulk RNA it grabs your gene names, baseMean, Log2FoldChange, sheetname and f
 <img width="518" alt="image" src="https://github.com/user-attachments/assets/ced2efa5-a585-45c3-830b-d44c447760bb" />
 
 
-please request the AI service to provide you with the filename if you want to query it. 
+please request the AI service to provide you with the filename if you want to know which file(s) it pulled genes from.
 
 When selecting a pre-existing database, please select the parent directory that has your chrome_langchain_db folder database.
 
