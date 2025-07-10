@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+venv_clean/
+*.pyc
+
+# Build artifacts
+build/
+dist/
+
+# IDE and OS files
+.vscode/
+.DS_Store
+
+# Icons and local data
+icons/
+share/
+RNASeqApp.icns
+RNA-app-icon.icns
+RNASeqApp.iconset/
+RNASeqApp.png
+
+# Large local database and files
+chrome_langchain_db/
+chrome_langchain_db.zip
+excel_files/
+
+# Shell scripts (if they are for local use only)
+# If you want to share them, remove the next two lines
+create_app.sh
+create_app_crossplatform.sh
