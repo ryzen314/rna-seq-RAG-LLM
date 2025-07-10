@@ -8,7 +8,7 @@ from PyInstaller.utils.hooks import collect_data_files, collect_all
 spec_file_path = os.path.abspath(sys.argv[0])
 project_root = os.path.dirname(spec_file_path)
 
-app_name = 'RNASeqApp'
+app_name = 'RNASeqDatabase'
 
 # --- NEW: Platform-Specific Icon ---
 # This block automatically chooses the correct icon file based on the OS.

@@ -31,7 +31,7 @@ def run_command(command_list, capture=True):
     Runs a command with the correct Ollama environment and executable path.
     """
     global OLLAMA_EXECUTABLE_PATH
-    
+
     # Use the full path to the executable if we found it, otherwise just use 'ollama'
     executable = OLLAMA_EXECUTABLE_PATH or 'ollama'
     # Reconstruct the command with the full path to the executable
@@ -88,6 +88,19 @@ def get_nvidia_vram():
     except (Exception):
         return None
 
+def get_amd_gpu_vram():
+    """Gets total VRAM from rocm-smi, returns in GB."""
+    try:
+        # The command returns JSON data, so we parse it
+        output = subprocess.run(['rocm-smi', '--showmeminfo', 'vram', '--json'], capture_output=True, text=True, check=True).stdout.strip()
+        data = json.loads(output)
+        # Find the 'VRAM Total Memory (B)' value, which is in bytes
+        total_bytes = int(data['card0']['VRAM Total Memory (B)'])
+        return f"{total_bytes / (1024**3):.2f} GB"
+    except (Exception):
+        return None
+
+
 def get_apple_silicon_vram():
     """Gets total unified memory on Apple Silicon, returns in GB."""
     if platform.machine() == 'arm64':
@@ -105,10 +118,23 @@ def get_system_vram():
     """
     print("Detecting system hardware and VRAM...")
     os_type = sys.platform
+
     if os_type == "darwin":
         vram = get_apple_silicon_vram()
         return ("Apple Silicon", vram) if vram else ("macOS (Intel)", "Detection not implemented")
-    # Add other OS/GPU checks here if needed
+
+    elif os_type == "linux":
+        # Check for NVIDIA GPU first
+        nvidia_vram = get_nvidia_vram()
+        if nvidia_vram:
+            return ("NVIDIA GPU", nvidia_vram)
+
+        # If not NVIDIA, check for AMD GPU
+        amd_vram = get_amd_gpu_vram()
+        if amd_vram:
+            return ("AMD GPU", amd_vram)
+
+    # Fallback for other systems or if no GPU is detected
     return "Unknown", "Detection not available"
 
 # --- Ollama Management Functions ---
@@ -119,10 +145,10 @@ def check_ollama_installed():
     """
     global OLLAMA_EXECUTABLE_PATH
     print("Checking for Ollama installation...")
-    
+
     # Start with a list of potential paths to check
     paths_to_check = ['ollama'] # Default case for when 'ollama' is in the PATH
-    
+
     if sys.platform == "darwin":
         # On macOS, add standard installation paths to the list
         paths_to_check.extend([
@@ -145,14 +171,14 @@ def check_ollama_installed():
         except (subprocess.CalledProcessError, FileNotFoundError):
             # This path didn't work, so we try the next one
             continue
-            
+
     print("Ollama executable not found or is not working in standard paths.")
     return False
 
 def serve_ollama():
     """Starts the Ollama server as a background process."""
     global OLLAMA_EXECUTABLE_PATH
-    
+
     # Use the full path to the executable if we found it, otherwise just use 'ollama'
     executable = OLLAMA_EXECUTABLE_PATH or 'ollama'
     command = f"{executable} serve"
